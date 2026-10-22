@@ -4,6 +4,8 @@ M5Stack Tab5 で、家電のお手入れと消耗品の予定を期日の近い�
 
 **ブラウザから書き込む: https://sin1.studio/Tab5HomePanelDemo/**（PC の Chrome / Edge）
 
+解説ブログ: [AI秘書xangiで日用品の在庫管理をしてみる（予定）](https://sin1.studio/blog/2026-10-22-xangi-home-stock/)
+
 - チップの版（ESP32-P4 の初期ロット v1.x と v3.x）を書き込みページが読み取り、合う方のファームウェアを自動で選びます。
 - 書き込みには [esptool-js](https://github.com/espressif/esptool-js) を使っています。
 
