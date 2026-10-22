@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tab5 おうちパネル デモ｜ブラウザから書き込み</title>
+  <meta name="description" content="M5Stack Tab5 用の『おうちパネル』デモ版。家電のお手入れと消耗品の予定を期日順に並べ、タップで記録します。ブラウザから直接書き込めます。" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F4F1EA; --card: #FFFFFF; --text: #26231F; --sub: #6F695F; --line: #E4DED3;
+      --green: #2F6F62; --blue: #4E7FA8; --over: #D9534F; --today: #E8892B; --soon: #E6B422; --ok: #8FB08A;
+      --demo: #C2563A; --code-bg: #F1EEE7;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #1D1B18; --card: #2A2723; --text: #F1ECE3; --sub: #B3AA9C; --line: #3D3832; --code-bg: #34302A;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #1D1B18; --card: #2A2723; --text: #F1ECE3; --sub: #B3AA9C; --line: #3D3832; --code-bg: #34302A;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Noto Sans JP", sans-serif;
+      background: var(--bg); color: var(--text);
+      padding: 32px 16px 72px; display: flex; justify-content: center; line-height: 1.8;
+    }
+    .wrap { width: 100%; max-width: 760px; }
+    header { text-align: center; margin-bottom: 28px; }
+    h1 { font-size: 2.1rem; font-weight: 800; letter-spacing: .03em; line-height: 1.3; }
+    .badge { display: inline-block; background: var(--demo); color: #fff; font-size: .8rem; font-weight: 800;
+             border-radius: 8px; padding: 2px 10px; vertical-align: middle; margin-left: 6px; }
+    .tagline { color: var(--sub); font-weight: 700; margin-top: 6px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 24px; margin-bottom: 16px; }
+    h2 { font-size: 1.15rem; font-weight: 800; margin-bottom: 12px; }
+    p + p { margin-top: 10px; }
+    ul, ol { padding-left: 1.4em; }
+    li + li { margin-top: 4px; }
+    .note { color: var(--sub); font-size: .92rem; }
+    a { color: var(--blue); font-weight: 700; }
+    code { background: var(--code-bg); border-radius: 5px; padding: 1px 6px; font-size: .9em;
+           font-family: "SFMono-Regular", Consolas, monospace; }
+
+    /* 画面の見本（実機は 1280×720。縮めて描いている） */
+    .panel { border: 10px solid #1b1b1b; border-radius: 22px; background: #F4F1EA; color: #26231F;
+             aspect-ratio: 16 / 9; display: flex; flex-direction: column; overflow: hidden; font-size: clamp(9px, 1.7vw, 13px); }
+    .panel-head { display: flex; align-items: center; gap: .8em; padding: .8em 1.4em; border-bottom: 1px solid #DDD7CC; }
+    .panel-head b { font-size: 1.6em; }
+    .panel-head .badge { margin: 0; font-size: .9em; }
+    .panel-head span.d { color: #7A746B; }
+    .panel-head .q { margin-left: auto; background: #E4DED3; border-radius: .6em; padding: .2em .9em; }
+    .rows { flex: 1; display: flex; flex-direction: column; gap: .7em; padding: .9em 1.2em; }
+    .row { flex: 1; background: #fff; border-radius: .9em; display: flex; align-items: center; position: relative; padding: 0 1em 0 2em; }
+    .row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: .7em; border-radius: .9em 0 0 .9em; background: var(--c); }
+    .row .t { flex: 1; min-width: 0; }
+    .row .t b { display: block; font-size: 1.35em; }
+    .row .t small { color: #7A746B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+    .row .due { text-align: right; margin-right: 1em; white-space: nowrap; }
+    .row .due b { color: var(--c); font-size: 1.3em; display: block; }
+    .row .due small { color: #7A746B; }
+    .row .btn { background: #2F6F62; color: #fff; border-radius: .7em; padding: .7em 1.4em; font-weight: 800; white-space: nowrap; }
+    .row .btn + .btn { margin-left: .5em; background: #4E7FA8; }
+    .panel-foot { display: flex; gap: .6em; align-items: center; padding: .7em 1.4em; border-top: 1px solid #DDD7CC; color: #7A746B; }
+    .panel-foot i { font-style: normal; background: #E4DED3; color: #26231F; border-radius: .6em; padding: .3em .9em; }
+
+    /* 書き込み */
+    .flash { text-align: center; padding: 8px 0 4px; }
+    #flash-btn { font: inherit; font-weight: 800; font-size: 1.1rem; color: #fff; background: var(--green);
+                 border: none; border-radius: 999px; padding: 14px 40px; cursor: pointer; box-shadow: 0 4px 0 #1f4b42; }
+    #flash-btn:disabled { opacity: .55; cursor: default; box-shadow: none; }
+    .progress { height: 12px; background: var(--line); border-radius: 999px; overflow: hidden; margin: 18px 0 8px; display: none; }
+    .progress > div { height: 100%; width: 0; background: var(--green); transition: width .2s; }
+    #status { font-weight: 800; min-height: 1.8em; }
+    #status.error { color: var(--over); }
+    details { margin-top: 10px; }
+    summary { cursor: pointer; color: var(--sub); font-size: .9rem; }
+    #log { margin-top: 8px; background: var(--code-bg); border-radius: 10px; padding: 10px 12px; height: 180px; overflow: auto;
+           font-family: "SFMono-Regular", Consolas, monospace; font-size: .78rem; line-height: 1.5; white-space: pre-wrap; text-align: left; }
+    .unsupported { background: #FDECEC; color: #A33A36; border-radius: 12px; padding: 12px 16px; margin-top: 12px; font-size: .92rem; display: none; }
+
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .controls div { background: var(--code-bg); border-radius: 12px; padding: 10px 14px; font-size: .92rem; }
+    .controls b { color: var(--green); }
+    .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; font-size: .9rem; }
+    .legend span::before { content: ""; display: inline-block; width: 14px; height: 14px; border-radius: 4px; background: var(--c);
+                           vertical-align: -2px; margin-right: 6px; }
+    .footer { text-align: center; color: var(--sub); font-size: .85rem; margin-top: 8px; }
+    .footer img { height: 48px; display: block; margin: 0 auto 4px; }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .footer img { filter: invert(1); } }
+    :root[data-theme="dark"] .footer img { filter: invert(1); }
+    @media (max-width: 560px) {
+      h1 { font-size: 1.6rem; }
+      .card { padding: 20px 16px; }
+      .controls { grid-template-columns: 1fr; }
+      .row .btn { padding: .6em .8em; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Tab5 おうちパネル<span class="badge">デモ</span></h1>
+      <p class="tagline">家電のお手入れと消耗品の「次はいつ？」を、キッチンの壁で一目に。</p>
+    </header>
+
+    <div class="card">
+      <h2>どんなもの？</h2>
+      <div class="panel" role="img" aria-label="Tab5 の画面の見本。お手入れと消耗品が期日の近い順に3行並び、それぞれに「やった」「開封」「届いた」のボタンがある">
+        <div class="panel-head"><b>おうちのお手入れ</b><span class="badge">デモ</span><span class="d">今日 10/22（木）</span><span class="q">？ 説明</span></div>
+        <div class="rows">
+          <div class="row" style="--c: var(--over)"><div class="t"><b>洗濯機</b><small>槽洗浄（洗濯槽クリーナーを使う）</small></div><div class="due"><b>1日過ぎ</b><small>期日 10/21（水）</small></div><span class="btn">やった</span></div>
+          <div class="row" style="--c: var(--today)"><div class="t"><b>エアコン</b><small>フィルター掃除</small></div><div class="due"><b>今日</b><small>期日 10/22（木）</small></div><span class="btn">やった</span></div>
+          <div class="row" style="--c: var(--soon)"><div class="t"><b>トイレットペーパー</b><small>在庫 1・補充目安 10/26（月）・ペース 14日</small></div><div class="due"><b>明日</b><small>通知 10/23（金）</small></div><span class="btn">開封</span><span class="btn">届いた</span></div>
+        </div>
+        <div class="panel-foot"><i>+1日</i><i>+7日</i><i>最初から</i><span>期限切れ・今日 2件　3日以内 3件</span></div>
+      </div>
+      <p style="margin-top:16px">
+        M5Stack Tab5（5インチのタッチ画面）に、家電のお手入れと消耗品の予定を<b>期日の近い順</b>に並べます。
+        終わったら「やった」、開けたら「開封」、買ったら「届いた」をタップするだけ。
+        消耗品は開封した間隔から、次に買う日を見積もります。
+      </p>
+      <p class="note">
+        本番版は Wi-Fi で自宅PCの台帳とつながり、記録すると AI アシスタント（xangi）が Discord へのお知らせの予約を入れ直します。
+        このデモ版は<b>Tab5 本体だけで動きます</b>。データは架空で、記録は保存されません（電源を切ると元に戻ります）。
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>必要なもの</h2>
+      <ul>
+        <li><b>M5Stack Tab5</b></li>
+        <li><b>USB-C ケーブル</b>（データ通信できるもの。充電専用は不可）</li>
+        <li><b>パソコンの Google Chrome または Microsoft Edge</b>（スマホ・Safari・Firefox は非対応）</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>① 書き込む</h2>
+      <p>Tab5 をパソコンに USB でつないで、下のボタンを押してください。チップの版（初期ロット v1.x／新しい v3.x）を読み取って、合う方のファームウェアを自動で書き込みます。</p>
+      <div class="flash">
+        <p style="margin:14px 0 18px"><button id="flash-btn" type="button">Tab5 に書き込む</button></p>
+        <div class="progress" id="progress"><div></div></div>
+        <p id="status" aria-live="polite"></p>
+        <p class="unsupported" id="unsupported">このブラウザは Web Serial に対応していません。<b>パソコンの Chrome または Edge</b> で開いてください。</p>
+        <details>
+          <summary>くわしいログ</summary>
+          <div id="log"></div>
+        </details>
+      </div>
+      <p class="note" style="margin-top:14px">
+        ボタンを押すとポートの選択画面が出ます。Tab5 のポート（「USB JTAG/serial debug unit」など）を選んで「接続」を押してください。
+        書き込みには 1〜2 分かかります。終わったら自動で再起動します（画面が変わらなければリセットボタンを1回押してください）。
+      </p>
+      <p class="note" style="margin-top:8px">⚠️ 書き込むと、Tab5 に入っているプログラムは上書きされます。書き込みと利用は自己責任でお願いします。</p>
+    </div>
+
+    <div class="card">
+      <h2>② 使い方</h2>
+      <div class="controls">
+        <div><b>やった</b>　お手入れを今日やったことにする（次の期日が先に延びる）</div>
+        <div><b>開封</b>　消耗品を開けた（在庫 −1、開封日からペースを計算し直す）</div>
+        <div><b>届いた</b>　買った消耗品が届いた（数を選んで在庫 +）</div>
+        <div><b>+1日／+7日</b>　日付を進める。期日を迎えた品は「お知らせ」が出る</div>
+        <div><b>最初から</b>　デモのデータを最初の状態に戻す</div>
+        <div><b>？ 説明</b>　しくみの説明とこのページの QR コード</div>
+      </div>
+      <div class="legend">
+        <span style="--c: var(--over)">期限切れ</span><span style="--c: var(--today)">今日</span>
+        <span style="--c: var(--soon)">3日以内</span><span style="--c: var(--ok)">まだ先</span>
+      </div>
+      <p class="note" style="margin-top:12px">何もしないで3分たつと画面が暗くなります。暗いときの最初のタッチは、明るくするだけです。</p>
+    </div>
+
+    <div class="card">
+      <h2>❓ うまくいかないとき</h2>
+      <ul class="note">
+        <li><b>ポートが出てこない／接続できない</b>：Arduino IDE・PlatformIO・M5Burner・ほかのタブなど、シリアルを使っているものを全部閉じてください。ケーブルを替える、PC に直接挿すのも効きます。</li>
+        <li><b>それでも接続できない</b>：Tab5 のリセットボタンを長押ししてダウンロードモードにしてから、もう一度「書き込む」を押してください（手順は <a href="https://docs.m5stack.com/en/core/Tab5" target="_blank" rel="noopener">M5Stack 公式の Tab5 ページ</a>）。</li>
+        <li><b>「Tab5 ではないようです」と出る</b>：別の機器のポートを選んでいます。Tab5 のポートを選び直してください。</li>
+        <li><b>ボタンが押せない</b>：スマホや非対応のブラウザです。パソコンの Chrome／Edge で開いてください。</li>
+      </ul>
+    </div>
+
+    <p class="footer">
+      <a href="https://sin1.studio/" target="_blank" rel="noopener" aria-label="sin1.studio トップページへ"><img src="img/sss_logo_black.png" alt="sin1's studio"></a>
+      ソースコード：<a href="https://github.com/sin1n24/Tab5HomePanelDemo">github.com/sin1n24/Tab5HomePanelDemo</a><br />
+      書き込みには <a href="https://github.com/espressif/esptool-js" target="_blank" rel="noopener">esptool-js</a> を使っています。<br />
+      © 2026 <a href="https://sin1.studio" target="_blank" rel="noopener">sin1's studio</a> — MIT License
+    </p>
+  </div>
+
+  <script type="module">
+    import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.6.1/bundle.js";
+
+    // ESP32-P4 は v3.0 未満（初期ロット）と v3.x でファームウェアが別になる
+    const IMAGES = {
+      es: { path: "firmware/tab5-home-panel-demo.bin", label: "初期ロット（v1.x）用" },
+      rev3: { path: "firmware/tab5-home-panel-demo-rev3.bin", label: "v3.x 用" },
+    };
+
+    const btn = document.getElementById("flash-btn");
+    const statusEl = document.getElementById("status");
+    const logEl = document.getElementById("log");
+    const bar = document.getElementById("progress");
+
+    const log = (s) => { logEl.textContent += s; logEl.scrollTop = logEl.scrollHeight; };
+    const setStatus = (s, error = false) => { statusEl.textContent = s; statusEl.classList.toggle("error", error); };
+    const setProgress = (ratio) => { bar.style.display = "block"; bar.firstElementChild.style.width = `${Math.round(ratio * 100)}%`; };
+
+    if (!("serial" in navigator)) {
+      btn.disabled = true;
+      document.getElementById("unsupported").style.display = "block";
+    }
+
+    btn.addEventListener("click", async () => {
+      let port;
+      try {
+        port = await navigator.serial.requestPort();
+      } catch {
+        return;  // 選択画面で取り消した
+      }
+      btn.disabled = true;
+      logEl.textContent = "";
+      bar.style.display = "none";
+      const transport = new Transport(port, true);
+      const terminal = { clean() { logEl.textContent = ""; }, writeLine: (s) => log(s + "\n"), write: (s) => log(s) };
+      const loader = new ESPLoader({ transport, baudrate: 115200, terminal });
+      try {
+        setStatus("Tab5 に接続しています…");
+        const chip = await loader.main();
+        if (!chip.includes("ESP32-P4")) throw new Error(`Tab5 ではないようです（${chip}）`);
+        const rev = await loader.chip.getChipRevision(loader);  // major*100 + minor
+        const image = rev >= 300 ? IMAGES.rev3 : IMAGES.es;
+        setStatus(`チップ v${Math.floor(rev / 100)}.${rev % 100} を検出 → ${image.label}を書き込みます`);
+
+        const res = await fetch(image.path);
+        if (!res.ok) throw new Error(`ファームウェアを取得できません（${res.status}）`);
+        const data = new Uint8Array(await res.arrayBuffer());
+
+        await loader.writeFlash({
+          fileArray: [{ data, address: 0x0 }],  // 結合イメージ（ブートローダー・パーティション込み）
+          flashMode: "keep", flashFreq: "keep", flashSize: "keep",
+          eraseAll: false, compress: true,
+          reportProgress: (_i, written, total) => {
+            setProgress(written / total);
+            setStatus(`書き込み中… ${Math.round((written / total) * 100)}%（${image.label}）`);
+          },
+        });
+        await loader.after("hard_reset");
+        setProgress(1);
+        setStatus("書き込み完了！ Tab5 が再起動します。画面が変わらなければリセットボタンを押してください。");
+      } catch (e) {
+        log(`\n${e && e.stack ? e.stack : e}\n`);
+        setStatus(`失敗しました：${e && e.message ? e.message : e}（下の「うまくいかないとき」を見てください）`, true);
+      } finally {
+        try { await transport.disconnect(); } catch {}
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
